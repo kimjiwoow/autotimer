@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arc Calendar – tuned visible</title>
+    <link rel="preconnect" href="https://use.typekit.net" crossorigin>
+    <link rel="stylesheet" href="https://use.typekit.net/wxy1234.css">
+  
+    <style>
+        :root{
+           
+            --bg: #F5F6FF;
+            --radius: 600px;                       
+            --start: -30deg;                       
+            --step: 6deg;                        
+            
+            
+            --cx-offset: 400px;
+            --cy-offset: 150px; 
+            
+            --fs: 22px;        
+
+            /* ===== 인터랙션 ===== */
+            --influence: 80;
+            --strength: 0.8;
+            --ease: 0.15;
+            
+            /* ===== 스크롤 애니메이션 ===== */
+            --scroll-offset: 0deg;
+        }
+
+        html, body { 
+            height:100%; 
+            margin: 0;
+            padding: 0;
+        }
+        
+        body{
+            background:var(--bg);
+            min-height: 100vh;
+            overflow-x: hidden;
+            font-family: ui-sans-serif, system-ui, -apple-system,
+                "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",
+                Segoe UI, Roboto, sans-serif;
+            cursor: none; 
+        }
+
+       
+        .custom-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            background: #D2201C;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transition: all 0.1s ease;
+            transform: translate(-50%, -50%);
+        }
+
+      
+
+        .cursor-ripple {
+            position: fixed;
+            width: 15px;
+            height: 15px;
+            border: 1px solid #D2201C;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            animation: ripple 0.4s ease-out;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(2);
+                opacity: 0;
+            }
+        }
+
+      
+        .cursor-trail {
+            position: fixed;
+            width: 6px;
+            height: 6px;
+            background: rgba(210, 32, 28, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9996;
+            animation: trail 0.5s ease-out forwards;
+        }
+
+        @keyframes trail {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(0.3);
+                opacity: 0;
+            }
+        }
+
+       
+
+        .container{
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .content{
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 0;
+        }
+
+        .stage{
+            position:relative;
+            width: 100vw;   
+            height: 100vh;  
+            margin: 0 auto; 
+        }
+
+        /* ===== 타이머 스타일 ===== */
+        .timer {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            font-size: 50pt;
+            color: #D2201C;
+            font-family: 'arbotek-light-rounded', 'Arbotek Light Rounded', sans-serif;
+            cursor: pointer;
+            user-select: none;
+            z-index: 1000;
+            transition: opacity 0.2s ease;
+        }
+
+        .timer:hover {
+            opacity: 0.8;
+        }
+
+        /* 원의 중심을 좌하단 화면 밖에 두되, 오프셋으로 화면 안쪽에 가까이 */
+        .circle{
+            position:absolute;
+            left:   calc(-1 * var(--radius) + var(--cx-offset));
+            bottom: calc(-1 * var(--radius) + var(--cy-offset));
+            width:  calc(var(--radius) * 2);
+            height: calc(var(--radius) * 2);
+        }
+
+        .circle span{
+            position:absolute;
+            left:50%; top:50%;
+            transform-origin: 0 calc(-1 * var(--radius));
+            --dx: 0px; --dy: 0px;
+            transform:
+                rotate(calc(var(--start) + var(--i) * var(--step) + var(--scroll-offset)))
+                translate(var(--dx), var(--dy));
+            font-size: var(--fs);
+            color:#111;
+            letter-spacing:.02em;
+            white-space:nowrap;
+            will-change: transform;
+            transition: transform 0.8s cubic-bezier(0.22, 0.85, 0.25, 1);
+            /* 글자 겹침 방지 - 더 넓은 공간 확보 */
+            padding: 4px 8px;
+            background: rgba(245, 246, 255, 0.9);
+            border-radius: 4px;
+            min-width: 30px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .sat { color:#8B4513; } 
+        
+        .current-date { 
+            color: #FF0000 !important; 
+        }
+        
+        .current-weekday { 
+            color: #FF0000 !important; 
+        }
+
+        
+        .weekday{
+            transition: transform .8s cubic-bezier(.22,.85,.25,1), opacity .8s ease;
+        }
+        .weekday.off{
+            transform: translateX(-80vw);
+            opacity:.25;
+        }
+
+       
+        .enter{
+            opacity:0;
+            transform:
+                rotate(calc(var(--start) + var(--i) * var(--step)))
+                translate(-40px);
+            animation: pop-in .55s cubic-bezier(.22,.85,.25,1) forwards;
+        }
+        @keyframes pop-in{
+            to{
+                opacity:1;
+                transform:
+                    rotate(calc(var(--start) + var(--i) * var(--step)))
+                    translate(0);
+            }
+        }
+
+        
+        @media (max-width: 1200px) {
+            :root {
+                --radius: 500px;
+                --fs: 20px;
+                --cx-offset: 300px;
+                --cy-offset: 100px; 
+            }
+        }
+        
+        @media (max-width: 768px) {
+            :root {
+                --radius: 400px;
+                --fs: 18px;
+                --cx-offset: 250px;
+                --cy-offset: 80px; 
+            }
+            
+            
+            .circle span:not(.current-date):not(.current-weekday) {
+                opacity: 0;
+                transition: opacity 0.5s ease-out;
+            }
+            
+            
+            .circle span.current-weekday {
+                transform: translate(-50%, -50%) translateY(60px) translateX(120px) !important;
+                transition: all 0.5s ease-out;
+            }
+            
+            
+            .timer {
+                top: 50%;
+                left: 50%;
+                right: auto;
+                transform: translate(-50%, -50%);
+                font-size: 40pt;
+                transition: all 0.5s ease-out;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            :root {
+                --radius: 300px;
+                --fs: 16px;
+                --cx-offset: 200px;
+                --cy-offset: 50px; 
+            }
+            
+            
+            .circle span:not(.current-date):not(.current-weekday) {
+                opacity: 0;
+                transition: opacity 0.5s ease-out;
+            }
+            
+            
+            .circle span.current-weekday {
+                transform: translate(-50%, -50%) translateY(80px) translateX(100px) !important;
+                transition: all 0.5s ease-out;
+            }
+            
+           
+            .timer {
+                top: 50%;
+                left: 50%;
+                right: auto;
+                transform: translate(-50%, -50%);
+                font-size: 35pt;
+                transition: all 0.5s ease-out;
+            }
+        }
+
+
+        @media (hover:none){ :root{ --influence: 0; } } 
+    </style>
+</head>
+<body>
+    <div class="stage">
+        <div class="custom-cursor" id="customCursor"></div>
+        <div class="timer" id="timer">00:00</div>
+        <div class="circle" id="circle">
+       
+            <span style="--i:0">2025년</span>
+            <span style="--i:1">09월</span>
+            <span style="--i:2">20일</span>
+            
+            <span class="weekday" style="--i:3">월</span>
+            <span class="weekday" style="--i:4">화</span>
+            <span class="weekday" style="--i:5">수</span>
+            <span class="weekday" style="--i:6">목</span>
+            <span class="weekday" style="--i:7">금</span>
+            <span class="weekday sat" style="--i:8">토</span>
+            <span class="weekday" style="--i:9">일</span>
+            
+            <span class="day" style="--i:10">1</span>
+            <span class="day" style="--i:11">2</span>
+            <span class="day" style="--i:12">3</span>
+            <span class="day" style="--i:13">4</span>
+            <span class="day" style="--i:14">5</span>
+            <span class="day" style="--i:15">6</span>
+            <span class="day" style="--i:16">7</span>
+            <span class="day" style="--i:17">8</span>
+            <span class="day" style="--i:18">9</span>
+            <span class="day" style="--i:19">10</span>
+            <span class="day" style="--i:20">11</span>
+            <span class="day" style="--i:21">12</span>
+            <span class="day" style="--i:22">13</span>
+            <span class="day" style="--i:23">14</span>
+            <span class="day" style="--i:24">15</span>
+            
+            <!-- 16~31 (처음에는 화면 밖) -->
+            <span class="day" style="--i:25">16</span>
+            <span class="day" style="--i:26">17</span>
+            <span class="day" style="--i:27">18</span>
+            <span class="day" style="--i:28">19</span>
+            <span class="day" style="--i:29">20</span>
+            <span class="day" style="--i:30">21</span>
+            <span class="day" style="--i:31">22</span>
+            <span class="day" style="--i:32">23</span>
+            <span class="day" style="--i:33">24</span>
+            <span class="day" style="--i:34">25</span>
+            <span class="day" style="--i:35">26</span>
+            <span class="day" style="--i:36">27</span>
+            <span class="day" style="--i:37">28</span>
+            <span class="day" style="--i:38">29</span>
+            <span class="day" style="--i:39">30</span>
+            <span class="day" style="--i:40">31</span>
+        </div>
+    </div>
+
+<script>
+
+(() => {
+  const circle = document.getElementById('circle');
+  let items = Array.from(circle.querySelectorAll('span'));
+
+  const S = new Map();
+  const ensure = el => { if(!S.has(el)) S.set(el,{tx:0,ty:0,targetX:0,targetY:0}); return S.get(el); };
+  items.forEach(ensure);
+
+  let mouse={x:-1e6,y:-1e6};
+  circle.addEventListener('mousemove', e=>{
+    const r=circle.getBoundingClientRect();
+    mouse.x=e.clientX - r.left;
+    mouse.y=e.clientY - r.top;
+  });
+  circle.addEventListener('mouseleave', ()=>{ mouse.x=-1e6; mouse.y=-1e6; });
+
+  const root=document.documentElement;
+  const getVar=k=>parseFloat(getComputedStyle(root).getPropertyValue(k));
+
+  function frame(){
+    const influence=getVar('--influence'), strength=getVar('--strength'), ease=getVar('--ease');
+    for(const el of items){
+      const st=ensure(el);
+      const cr=circle.getBoundingClientRect(), br=el.getBoundingClientRect();
+      const cx=(br.left-cr.left)+br.width/2, cy=(br.top-cr.top)+br.height/2;
+      const dx=cx-mouse.x, dy=cy-mouse.y, dist=Math.hypot(dx,dy);
+
+      if(dist<influence){
+        const f=(1 - dist/influence)*(influence*strength)/Math.max(dist,1);
+        st.targetX=dx*f; st.targetY=dy*f;
+      }else{
+        st.targetX=0; st.targetY=0;
+      }
+
+      st.tx+=(st.targetX-st.tx)*ease;
+      st.ty+=(st.targetY-st.ty)*ease;
+
+      el.style.setProperty('--dx', `${st.tx}px`);
+      el.style.setProperty('--dy', `${st.ty}px`);
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+
+  // 16~31 추가 후 갱신용
+  window.__updateItems=()=>{
+    items=Array.from(circle.querySelectorAll('span'));
+    items.forEach(ensure);
+  };
+})();
+
+/* ===== 2) 마우스 인터랙션: 데스크탑 벽면 터치 시 촤르륵 효과 ===== */
+(() => {
+  const root = document.documentElement;
+  const stage = document.querySelector('.stage');
+  let isHovering = false;
+  let animationId = null;
+  
+  function startChururukEffect() {
+    if (isHovering) return;
+    isHovering = true;
+    
+    // 곡선을 회전시켜서 16~31이 보이도록 (촤르륵 효과) - 왼쪽 방향
+    let rotation = 0;
+    const targetRotation = -180; // -180도 회전 (왼쪽 방향)
+    const duration = 1000; // 1초 동안
+    const startTime = performance.now();
+    
+    function animate() {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // 부드러운 easing 함수 (ease-out)
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      rotation = targetRotation * easeProgress;
+      
+      root.style.setProperty('--scroll-offset', `${rotation}deg`);
+      
+      // 모든 요소가 동일하게 곡선을 따라 움직임 (별도 이동 효과 제거)
+      
+      if (progress < 1) {
+        animationId = requestAnimationFrame(animate);
+      }
+    }
+    
+    animate();
+  }
+  
+  function resetEffect() {
+    isHovering = false;
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+      animationId = null;
+    }
+    
+    // 원래 상태로 복원
+    root.style.setProperty('--scroll-offset', '0deg');
+  }
+  
+  // 마우스가 데스크탑 벽면(화면 가장자리)에 닿았을 때
+  stage.addEventListener('mouseenter', (e) => {
+    const rect = stage.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // 화면 가장자리 50px 이내에 마우스가 있을 때
+    const edgeThreshold = 50;
+    const isNearEdge = x < edgeThreshold || x > rect.width - edgeThreshold || 
+                      y < edgeThreshold || y > rect.height - edgeThreshold;
+    
+    if (isNearEdge) {
+      startChururukEffect();
+    }
+  });
+  
+  stage.addEventListener('mouseleave', resetEffect);
+  
+  // 마우스가 화면 가장자리 근처에 있을 때도 감지
+  stage.addEventListener('mousemove', (e) => {
+    const rect = stage.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const edgeThreshold = 50;
+    const isNearEdge = x < edgeThreshold || x > rect.width - edgeThreshold || 
+                      y < edgeThreshold || y > rect.height - edgeThreshold;
+    
+    if (isNearEdge && !isHovering) {
+      startChururukEffect();
+    } else if (!isNearEdge && isHovering) {
+      resetEffect();
+    }
+  });
+})();
+
+/* ===== 3) 년도, 월, 일, 요일 업데이트 + 현재 날짜/요일 빨간색 강조 ===== */
+(() => {
+  const circle = document.getElementById('circle');
+  const spans = circle.querySelectorAll('span');
+  
+  function updateDateAndHighlight() {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 현재 월 (1-12)
+    const currentYear = now.getFullYear(); // 현재 연도
+    const currentDate = now.getDate(); // 현재 날짜 (1-31)
+    const currentDay = now.getDay(); // 현재 요일 (0=일요일, 1=월요일, ..., 6=토요일)
+    
+    // 요일 배열 (한국어)
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    const currentWeekday = weekdays[currentDay];
+    
+    // 모든 요소에서 current-date, current-weekday 클래스 제거
+    spans.forEach(span => {
+      span.classList.remove('current-date');
+      span.classList.remove('current-weekday');
+    });
+    
+    // 년, 월, 일 업데이트 (정확한 인덱스로)
+    spans.forEach((span, index) => {
+      // 첫 번째 요소: 년도
+      if (index === 0) {
+        span.textContent = `${currentYear}년`;
+      }
+      // 두 번째 요소: 월
+      else if (index === 1) {
+        span.textContent = `${currentMonth.toString().padStart(2, '0')}월`;
+      }
+      // 세 번째 요소: 일
+      else if (index === 2) {
+        span.textContent = `${currentDate}일`;
+      }
+    });
+    
+    // 요일 업데이트 (인덱스 3-9)
+    spans.forEach((span, index) => {
+      if (index >= 3 && index <= 9) {
+        const weekdayIndex = index - 3;
+        span.textContent = weekdays[weekdayIndex];
+      }
+    });
+    
+    // 현재 날짜에 해당하는 숫자 찾기 (1-31 범위) - 일 부분 제외
+    spans.forEach((span, index) => {
+      const text = span.textContent.trim();
+      const num = parseInt(text);
+      
+      // 1-31 범위의 숫자 중에서 현재 날짜와 일치하는 것 (인덱스 2는 일 부분이므로 제외)
+      if (!isNaN(num) && num >= 1 && num <= 31 && index !== 2) {
+        if (num === currentDate) {
+          span.classList.add('current-date');
+        }
+      }
+    });
+    
+    // 현재 요일 찾기
+    spans.forEach(span => {
+      const text = span.textContent.trim();
+      if (text === currentWeekday) {
+        span.classList.add('current-weekday');
+      }
+    });
+  }
+  
+  // 초기 실행
+  updateDateAndHighlight();
+  
+
+  setInterval(updateDateAndHighlight, 60000);
+})();
+
+/* ===== 타이머 기능 ===== */
+document.addEventListener('DOMContentLoaded', function() {
+  const timer = document.getElementById('timer');
+  
+  if (!timer) {
+    console.error('Timer element not found');
+    return;
+  }
+  
+  let startTime = null;
+  let elapsedTime = 0;
+  let timerInterval = null;
+  let isRunning = false;
+
+  function formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+
+  function updateTimer() {
+    if (startTime) {
+      elapsedTime = Date.now() - startTime;
+      timer.textContent = formatTime(elapsedTime);
+    }
+  }
+
+  function startTimer() {
+    if (!isRunning) {
+      startTime = Date.now() - elapsedTime;
+      timerInterval = setInterval(updateTimer, 100);
+      isRunning = true;
+      console.log('Timer started');
+    }
+  }
+
+  function stopTimer() {
+    if (isRunning) {
+      clearInterval(timerInterval);
+      isRunning = false;
+      console.log('Timer stopped');
+    }
+  }
+
+  function resetTimer() {
+    stopTimer();
+    elapsedTime = 0;
+    startTime = null;
+    timer.textContent = '00:00';
+    console.log('Timer reset');
+  }
+
+  // 클릭 이벤트 (시작/정지)
+  timer.addEventListener('click', function(e) {
+    if (isRunning) {
+      stopTimer();
+    } else {
+      startTimer();
+    }
+    
+    // 커서 클릭 효과
+    createCursorEffect(e.clientX, e.clientY);
+  });
+
+  // 더블클릭 이벤트 (초기화)
+  timer.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    resetTimer();
+    
+    // 커서 더블클릭 효과 (더 강한 효과)
+    createCursorEffect(e.clientX, e.clientY, true);
+  });
+  
+  // 커서 클릭 효과 함수
+  function createCursorEffect(x, y, isDoubleClick = false) {
+    const cursor = document.getElementById('customCursor');
+    if (!cursor) return;
+    
+    // 커서 색상 변화 효과 제거
+    
+    // 파동 효과 생성
+    const ripple = document.createElement('div');
+    ripple.className = 'cursor-ripple';
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    
+    if (isDoubleClick) {
+      ripple.style.borderColor = '#ff4444';
+      ripple.style.borderWidth = '3px';
+    }
+    
+    document.body.appendChild(ripple);
+    
+    // 파티클 및 화면 효과 제거
+    
+    // 애니메이션 완료 후 요소 제거
+    setTimeout(() => {
+      if (ripple.parentNode) {
+        ripple.parentNode.removeChild(ripple);
+      }
+    }, 600);
+  }
+  
+ 
+  
+  console.log('Timer initialized');
+});
+
+
+document.addEventListener('DOMContentLoaded', function() {
+  const cursor = document.getElementById('customCursor');
+  
+  if (!cursor) {
+    console.error('Custom cursor element not found');
+    return;
+  }
+  
+ 
+  document.addEventListener('mousemove', function(e) {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    
+  
+    if (Math.random() < 0.3) {
+      createCursorTrail(e.clientX, e.clientY);
+    }
+  });
+  
+  
+  document.addEventListener('mouseleave', function() {
+    cursor.style.opacity = '0';
+  });
+  
+ 
+  document.addEventListener('mouseenter', function() {
+    cursor.style.opacity = '1';
+  });
+  
+ 
+  function createCursorTrail(x, y) {
+    const trail = document.createElement('div');
+    trail.className = 'cursor-trail';
+    trail.style.left = x + 'px';
+    trail.style.top = y + 'px';
+    
+    document.body.appendChild(trail);
+    
+    
+    setTimeout(() => {
+      if (trail.parentNode) {
+        trail.parentNode.removeChild(trail);
+      }
+    }, 500);
+  }
+  
+  console.log('Custom cursor initialized');
+});
+</script>
+</body>
+</html>
